@@ -1,0 +1,222 @@
+#!/bin/zsh
+# for bash/zsh
+
+# Manjaro post install set-up
+# -------------------------------------------------
+# Notes: 1. Copy Stuff from back up drive to home directory before running this script.
+
+# Create directories for logs
+# -------------------------------------------------
+mkdir -p ~/Logs/Majaro_set_up_logs
+
+# Update sudo credentials
+# -------------------------------------------------
+sudo -v
+
+# Commonly used variables
+# -------------------------------------------------
+stuffFolder='~/Stuff'
+logDir='~/Logs/Manjaro_set_up_logs'
+
+# Initial snapshot
+# -------------------------------------------------
+sudo find / -type f 2>/dev/null 1>>~/Documents/InitialSnapShot
+echo "Number of files: $(wc -l ~/Documents/InitialSnapShot)" >> ~/Documents/InitialSnapshot
+echo "Disk usage: "
+df -h >> ~/Documents/InitialSnapshot
+
+# Update software and repositories
+# -------------------------------------------------
+sudo pacman -Syu
+
+# Fix broken locale
+# -------------------------------------------------
+sudo sed -i 's/#en_US.UTF-8 UTF-8/ en_US.UTF-8 UTF-8/' /etc/locale.gen | grep en_US.UTF-8
+sudo locale-gen
+
+# Possible fix for KDE download issues?
+# --------------------------------------------------
+# pacman -S xorg-xauth
+
+# Install packages from pacman
+# -------------------------------------------------
+# Essential\desktop agnostic packages
+pacman -S yay tilix lolcat cowsay fortune-mod python-pywal bleachbit brave-browser steam firejail firetools \
+tela-icon-theme htop ncdu binutils base-devel vim gimp macchanger powerline fish exa ghostscript \
+net-tools signal-desktop cmus tmux cmatrix ttf-fira-code tlp tlp-rdw screenfetch \
+screenkey neofetch oh-my-zsh bluez-utils youtube-dl preload ranger bashtop ttf-roboto \
+ttf-roboto-mono tilda pavucontrol aspell-en libmythes mythes-en languagetool \
+vlc mpv calibre foliate jpegoptim imagemagick libreoffice-fresh evolution-ews \
+keepassxc picard libinput-gestures libinput-gestures inkscape qalculate-gtk gufw lxappearance\
+krita kontact stellarium gparted\
+ 1>>$logDir/pacman.stdout 2>>$logDir/pacman.stderr
+# KDE specific packages
+# Gnome specific packages
+pacman -S pdfarranger gnome-notes popsicle gpick gnome-podcasts
+sudo pacman -S translate-shell # traslator (!!google!!)
+sudo pacman -S elisa
+# Additional packages for GTK apps to work well in KDE
+pacman -S appmenu-gtk-module gnome-keyring kalarm kronometer
+# Fix glitchy screenshot in Plasma 5; might fix login delay
+sudo pacman -Rsn xf86-video-intel
+# Fix LibreOffice theming
+	# SAL_USE_VCLPLUGIN=gtk lowriter
+	# nano /etc/profile.d/libreoffice-fresh.sh
+	# uncomment export SAL_USE_VCLPLUGIN=gtk or uncomment export SAL_USE_VCPLUGIN=qt5 to enable menu to show up in KDE's global menu
+	# Source: https://bbs.archlinux.org/viewtopic.php?id=201111
+# Disable gtk client side decorations (allow GTK applications to take KDE borders)
+yay -S gtk3-nocsd-git # Source: https://wiki.archlinux.org/title/Uniform_look_for_Qt_and_GTK_applications
+# Possible fix for global menu? Install dependecies for latte global app menu. Dependencies listed on arch user repositories (https://aur.archlinux.org/packages/plasma5-applets-window-appmenu/)
+sudo pacman -S libxcb plasma-workspace qt5-base qt5-declarative extra-cmake-modules kwindowsystem plasma-framework libdbusmenu-gtk2 libdbusmenu-gtk3 libdbusmenu-glib
+# Packages for virtualization and start up
+sudo pacman -S virt-manager qemu vde2 ebtables dnsmasq bridge-utils openbsd-netcat
+sudo systemctl enable libvirtd.service
+sudo systemctl start libvirtd.service
+
+# Install packages from aur
+# -------------------------------------------------
+yay -S auto-cpufreq paru-git nordvpn-bin ocs-url moka-icon-theme-git yaru-colors-icon-theme\
+ttf-ms-fonts ttf-vista-fonts otf-san-francisco otf-san-francisco-mono otf-san-francisco-compact otf-new-york \
+flameshot qownnotes app-outlet-bin masterpdfeditor-free\
+1>>$logDir/yay.stdout 2>>$logDir/yay.stderr
+paru -S ocenaudio
+yay -S firefox-ubuntu-bin #firefox with global menu patch -!!!READ BELOW FOR IMPORTANT FIX!!!-
+# Fix apparmour profile load failure with firefox-ubuntu-bin
+# (Source: 1. https://askubuntu.com/questions/1171610/with-firefox-esr-installed-apparmor-failed-to-start-with-could-not-open-abstra 2. https://bugs.launchpad.net/ubuntu/+source/firefox/+bug/1777070)  
+touch ~/firefox
+echo "#include <abstractions/ubuntu-browsers.d/plugins-common>\n#include <abstractions/ubuntu-browsers.d/mailto>\n#include <abstractions/ubuntu-browsers.d/multimedia>\n#include <abstractions/ubuntu-browsers.d/productivity>\n#include <abstractions/ubuntu-browsers.d/java>\n#include <abstractions/ubuntu-browsers.d/kde>\n#include <abstractions/ubuntu-browsers.d/text-editors>\n#include <abstractions/ubuntu-browsers.d/ubuntu-integration>\n#include <abstractions/ubuntu-browsers.d/user-files>" >> firefox
+sudo mv ~/firefox /etc/apparmor.d/abstractions/ubuntu-browsers.d/
+touch ~/usr.bin.firefox
+echo "ptrace (trace) peer=@{profile_name},\n@{HOME}/.mozilla/firefox/*/gmp-widevinecdm/*/lib*so m,ptrace (trace) peer=@{profile_name},: >> usr.bin.firefox"
+sudo mv !/usr.bin.firefox /etc/apparmor.d/local/
+
+# Make signal use system tray (source: https://askubuntu.com/questions/1123693/how-minimize-signal-messenger-to-system-tray-top-right-corner)
+#use --start-in-tray option, to start in tray only, instead of desktop + tray
+sudo sed -i "s/Exec=signal-desktop -- %u/Exec=signal-desktop --use-tray-icon --no-sandbox %u/" /usr/share/applications/signal-desktop.desktop
+
+# Flatpak installs
+# -------------------------------------------------
+# For KDE
+flatpak install Kasts
+
+# Download github packages
+# -------------------------------------------------
+mkdir -p ~/GitHub/Themes ~/Github/Software
+cd ~/Github/Software													# Software
+git clone https://github.com/georgewhewell/undervolt.git 1>>$logDir/git.stdout 2>>$logDir/git.stderr				# 1.Undervolt.py
+git clone https://github.com/ytdl-org/youtube-dl.git 1>>$logDir/git.stdout 2>>$logDir/git.stderr				# 2.youtube-dl
+git clone https://github.com/zsh-users/zsh-syntax-highlighting.git 1>>$logDir/git.stdout 2>>$logDir/git.stderr			# 3.zsh syntax highlighting
+cd ~/Github/Themes													# Themes
+git clone https://github.com/vinceliuice/Orchis-theme.git 1>>$logDir/git.stdout 2>>$logDir/git.stderr				# 1.Orchis theme
+git clone https://github.com/vinceliuice/Tela-icon-theme.git 1>>$logDir/git.stdout 2>>$logDir/git.stderr			# 2.Tela icon theme
+git clone https://github.com/vinceliuice/Tela-circle-icon-theme.git 1>>$logDir/git.stdout 2>>$logDir/git.stderr			# 3.Tela circular icon theme
+
+# Install packages with wget
+# -------------------------------------------------
+cd ~ && wget -O - "https://www.dropbox.com/download?plat=lnx.x86_64" | tar xzf 			# 1. DropBox
+
+# Set up oh-my-zsh
+# -------------------------------------------------
+mv ~/.zshrc ~/.zshrc-backup-original
+sudo cp $stuffFolder/my-custom-theme-01.zsh-theme /usr/share/oh-my-zsh/themes
+sed -i 's/robbyrussell/my-custom-theme-01/' ~/.zshrc
+echo "# My custom commands" >> ~/.zshrc
+echo '# Note: Original Manjaro Powerline theme is at ~/.zshrc-backup-original' >> ~/.zshrc
+echo "source ~/Stuff/Configs/zshConfig"
+
+# Remove dashed lines
+# -------------------------------------------------
+touch ~/.config/gtk-3.0/gtk.css
+echo "scrolledwindow undershoot.top,\nscrolledwindow undershoot.right,\nscrolledwindow undershoot.bottom,\nscrolledwindow undershoot.left { background-image: none; }" >> ~/.config/gtk-3.0/gtk.css  
+
+# Generate vim configuration file
+# -------------------------------------------------
+vimConfigFile='~/.vimrc'
+touch $vimConfigFile
+echo "syntax on" >> $vimConfigFile
+echo "set number relativenumber" >> $vimConfigFile
+echo "set cursorline" >> $vimConfigFile
+echo "hi CursorLine ctermbg=237 ctermfg=15" >> $vimConfigFile
+echo "hi CursorLine term=none" >> $vimConfigFile
+echo "hi Cursor ctermbg=15 ctermfg=8" >> $vimConfigFile
+echo "set cursorcolumn" >> $vimConfigFile
+echo "hi Cursorcolumn ctermbg=237 ctermfg=15" >> $vimCOnfigFile
+
+# Generate tmux configuration file
+# -------------------------------------------------
+
+
+# Modify theme (Matcha-dark-aliz -> Matcha-black-pomegranate)
+# -------------------------------------------------
+sudo cp -r /usr/share/themes/Matcha-dark-aliz /usr/share/themes/Matcha-black-pomegranate
+finalDest='/usr/share/themes/Matcha-black-pomegranate'
+sudo sed -i 's///g' ${finalDest}/gnome-shell/gnome-shell.css		# Base color
+#sudo sed -i 's///g' ${finalDest}/gnome-shell/gnome-shell.css		# Accent
+#sudo sed -i 's///g' ${finalDest}/gtk-3.0/gtk.css			# Accent
+#sudo sed -i 's///g' $(finalDest}/gtk-3.0/gtk-dark.css			# Accent
+
+# Enable trim for ssd
+# -------------------------------------------------
+sudo systemctl enable fstrim.timer
+
+# Start preload
+# -------------------------------------------------
+sudo preload
+
+# Start tlp
+# -------------------------------------------------
+sudo tlp start
+
+# Set up nordvpn for linux
+# -------------------------------------------------
+sudo systemctl enable --now nordvpnd
+sudo gpasswd -a ${USER} nordvpn
+
+# Set up nordvpn for use
+# -------------------------------------------------
+nordvpn c
+nordvpn set killswitch enabled
+nordvpn set autoconnect enabled
+
+# Set up powertop as a service
+# -------------------------------------------------
+powertopServiceFile='/etc/systemd/system/powertop.service'
+sudo touch $powertopServiceFile
+echo '[Unit]' >> $powertopServiceFile
+echo 'Description=Powertop tunings' >> $powertopServiceFile
+echo '' >> $powertopServiceFile
+echo '[Service]' >> $powertopServiceFile
+echo 'Type=oneshot' >> $powertopServiceFile
+echo 'ExecStart=/usr/bin/powertop --auto-tune' >> $powertopServiceFile
+echo '' >> $powertopServiceFile
+echo '[Install]' >> $powertopServiceFile
+echo 'WantedBy=multi-user.target' >> $powertopServiceFile
+
+# Install unified remote server & fix compatibility
+---------------------------------------------------
+# (Reference: https://stackoverflow.com/questions/30946821/bluecove-with-bluez-chucks-can-not-open-sdp-session-2-no-such-file-or-direct)
+paru -S unified-remote-server
+sudo cp /etc/systemd/system/bluetooth.target.wants/bluetooth.service /etc/systemd/system/dbus-org.bluez.service-backup-original
+sudo sed -i 's/ExecStart=\/usr\/lib\/bluetooth\/bluetoothd/ExecStart=\/usr\/lib\/bluetooth\/bluetoothd --compat/' bluetooth.target.wants/bluetooth.service
+sudo systemctl daemon-reload
+sudo systemctl restart bluetooth
+sudo chmod 777 /var/run/sdp
+
+# Final snapshot
+# -------------------------------------------------
+sudo find / -type f 2>/dev/null 1>>~/Documents/InitialSnapShot
+echo "Number of files: $(wc -l ~/Documents/InitialSnapShot)" >> ~/Documents/InitialSnapshot
+echo "Disk usage: "
+df -h >> ~/Documents/InitialSnapshot
+
+# Consolidate log files
+# -------------------------------------------------
+
+# Notes
+# -------------------------------------------------
+#
+# Mauve Hightlight: #916577
+# KDE Base Color Scheme: Aritim Dark
+# Modified View Background: #101010
+# Modified Window Bacground: #141414
+# Modified Selecton Background,Focus Decorations and HOver Decoration: #916577
